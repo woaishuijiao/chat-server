@@ -5,65 +5,103 @@
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <sys/time.h>
+#include <sys/select.h>
+#include "tcpserver.h"
+
+void error_handling(std::string message);
 
 int main(int argc, char* argv[])
 {
-    //create listen socket
-	int listenfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (listenfd == -1) {
-        std::cout << "create listen socket error" << std::endl;
-		return -1;
-	}
+//	TcpServer tcpServer(3000);
+//
+//	if (!tcpServer.init()) {
+//		return -1;
+//	}
+//	if (!tcpServer.bind()) {
+//		return -1;
+//	}
+//	if (!tcpServer.listen()) {
+//		return -1;
+//	}
+//	if (!tcpServer.accept()) {
+//		return -1;
+//	}
+	
+	char buf[32];
 
-	struct sockaddr_in bindaddr;
-	bindaddr.sin_family = AF_INET;
-	bindaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	bindaddr.sin_port = htons(3000);
-	if (bind(listenfd, (struct sockaddr*)&bindaddr, sizeof(bindaddr)) == -1) {
-		std::cout << "bind listen socket error" << std::endl;
-		return -1;
-	}
+	int serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+	sockaddr_in serv_adr;
+	memset(&serv_adr, 0, sizeof(serv_adr));
+	serv_adr.sin_family = AF_INET;
+	serv_adr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serv_adr.sin_port = htons(3000);
 
+	if (bind(serv_sock, (struct sockaddr*) &serv_adr, sizeof(serv_adr)) == -1)
+		error_handling("bind() error");
+	if (listen(serv_sock, 5) == -1)
+		error_handling("listen() error");
 
-    if (listen(listenfd, SOMAXCONN) == -1) {
-		std::cout << "listen error" << std::endl;
-		return -1;
-	}
+	fd_set reads, cpy_reads;
+	FD_ZERO(&reads);
+	FD_SET(serv_sock, &reads);
+	int fd_max = serv_sock;
 
-	//while(true) 
+	int num = 6;
+	while(num--)
 	{
-		struct sockaddr_in clientaddr;
-		socklen_t clientaddrlen = sizeof(clientaddr);
+		cpy_reads = reads;
+		struct timeval timeout;
+		timeout.tv_sec = 5;
+		timeout.tv_usec = 5000;
 
-		int clientfd = accept(listenfd, (struct sockaddr*)&clientaddr, &clientaddrlen);
-		if (clientfd != -1) {
-			while(1){
-				char recvBuf[32] = {0};
-				int ret = recv(clientfd, recvBuf, 32, 0);
-				if (ret > 0) {
-					std::cout << "recv:" << ret << " " << recvBuf << std::endl;
+		int fd_num;
+		if ((fd_num = select(fd_max+1, &cpy_reads, 0, 0, &timeout)) == -1)
+			break;
+		if (fd_num == 0)
+			continue;
 
-					ret = send(clientfd, recvBuf, strlen(recvBuf), 0);
-					if (ret != strlen(recvBuf)) {
-						std::cout << "send error:" << ret << " ; strlen(recvBuf): " << strlen(recvBuf) << std::endl;
-					} else {
-						std::cout << "send:" << recvBuf << std::endl;
-						
+		for (int i = 0; i < fd_max+1; i++)
+		{
+			if (FD_ISSET(i, &cpy_reads))
+			{
+				if (i == serv_sock)
+				{
+					sockaddr_in clnt_adr;
+					socklen_t adr_sz = sizeof(clnt_adr);
+					int clnt_sock = 
+						accept(serv_sock, (struct sockaddr*)&clnt_adr, &adr_sz);
+					FD_SET(clnt_sock, &reads);
+					if (fd_max < clnt_sock)
+						fd_max = clnt_sock;
+					printf("connected client: %d \n", clnt_sock);
+				}
+				else
+				{
+					int str_len = read(i, buf, 32);
+					if (str_len == 0)
+					{
+						FD_CLR(i, &reads);
+						close(i);
+						printf("closed client: %d \n", i);
 					}
-				} else if (ret == 0) {
-					std::cout << "client close sock" << std::endl;
-					close(clientfd);
-					break;
-				} else {
-					std::cout << "recv:" << ret << " errno:" << errno << std::endl;
-					close(clientfd);
-					break;
+					else
+					{
+						write(i, buf, str_len);
+					}
 				}
 			}
 		}
 	}
-
-	close(listenfd);
-
+	close(serv_sock);
 	return 0;
 }
+
+void error_handling(std::string message)
+{
+	fputs(message.c_str(), stderr);
+	fputc('\n', stderr);
+	exit(1);
+
+}
+
