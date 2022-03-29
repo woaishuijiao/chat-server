@@ -30,28 +30,36 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	while(true) {
+	//while(true) 
+	{
 		struct sockaddr_in clientaddr;
 		socklen_t clientaddrlen = sizeof(clientaddr);
 
 		int clientfd = accept(listenfd, (struct sockaddr*)&clientaddr, &clientaddrlen);
 		if (clientfd != -1) {
-			char recvBuf[32] = {0};
-			int ret = recv(clientfd, recvBuf, 32, 0);
-			if (ret > 0) {
-				std::cout << "recv:" << recvBuf << std::endl;
+			while(1){
+				char recvBuf[32] = {0};
+				int ret = recv(clientfd, recvBuf, 32, 0);
+				if (ret > 0) {
+					std::cout << "recv:" << ret << " " << recvBuf << std::endl;
 
-				ret = send(clientfd, recvBuf, strlen(recvBuf), 0);
-				if (ret != strlen(recvBuf)) {
-					std::cout << "send error" << std::endl;
+					ret = send(clientfd, recvBuf, strlen(recvBuf), 0);
+					if (ret != strlen(recvBuf)) {
+						std::cout << "send error:" << ret << " ; strlen(recvBuf): " << strlen(recvBuf) << std::endl;
+					} else {
+						std::cout << "send:" << recvBuf << std::endl;
+						
+					}
+				} else if (ret == 0) {
+					std::cout << "client close sock" << std::endl;
+					close(clientfd);
+					break;
 				} else {
-					std::cout << "send:" << recvBuf << std::endl;
-					
+					std::cout << "recv:" << ret << " errno:" << errno << std::endl;
+					close(clientfd);
+					break;
 				}
-			} else {
-				std::cout << "recv error" << std::endl;
 			}
-			close(clientfd);
 		}
 	}
 
