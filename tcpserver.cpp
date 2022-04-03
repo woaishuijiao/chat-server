@@ -68,7 +68,7 @@ bool TcpServer::accept()
 		if (ret > 0) {
 			std::cout << "recv:" << ret << " " << recvBuf << std::endl;
 			ret = send(clientfd, recvBuf, strlen(recvBuf), 0);
-			if (ret != strlen(recvBuf)) {
+			if (ret != (int)strlen(recvBuf)) {
 				std::cout << "send error:" << ret << " ; strlen(recvBuf): " << strlen(recvBuf) << std::endl;
 			} else {
 				std::cout << "send:" << recvBuf << std::endl;

@@ -7,6 +7,7 @@
 #include <cstring>
 #include <sys/time.h>
 #include <sys/select.h>
+#include <fcntl.h>
 #include "tcpserver.h"
 
 void error_handling(std::string message);
@@ -31,6 +32,20 @@ int main(int argc, char* argv[])
 	char buf[32];
 
 	int serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+	if (serv_sock == -1) {
+		std::cout << "socket() error" <<std::endl;
+		return -1;
+	}
+
+	//non-block
+	int flag = fcntl(serv_sock, F_GETFL, 0);
+    flag |= O_NONBLOCK;
+    if (fcntl(serv_sock, F_SETFL, flag) == -1) {
+        close(serv_sock);
+        std::cout << "fcntl() error" << std::endl;
+        return -1;
+    }
+
 	sockaddr_in serv_adr;
 	memset(&serv_adr, 0, sizeof(serv_adr));
 	serv_adr.sin_family = AF_INET;
@@ -47,7 +62,7 @@ int main(int argc, char* argv[])
 	FD_SET(serv_sock, &reads);
 	int fd_max = serv_sock;
 
-	int num = 6;
+	int num = 20;
 	while(num--)
 	{
 		cpy_reads = reads;
@@ -99,9 +114,7 @@ int main(int argc, char* argv[])
 
 void error_handling(std::string message)
 {
-	fputs(message.c_str(), stderr);
-	fputc('\n', stderr);
+	std::cout << message << " errno:" << errno << std::endl;
 	exit(1);
-
 }
 
