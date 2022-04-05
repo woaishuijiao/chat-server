@@ -1,5 +1,5 @@
 #ifndef TCPSERVER_H
-#define TCPSERVER_h
+#define TCPSERVER_H
 
 class TcpServer {
 public:

@@ -1,6 +1,7 @@
 #include "log.h"
 #include <map>
 #include <functional>
+#include <stdarg.h>
 
 namespace jiong {
 
@@ -82,7 +83,6 @@ class DateTimeFormatItem : public LogFormatter::FormatItem {
 public:
 	DateTimeFormatItem(const std::string& format = "%Y-%m:-%d %H:%M:%S")
 		: m_format(format) {
-		std::cout << m_format << std::endl;
 		if (m_format.empty()) {
 			m_format = "%Y-%m-%d %H:%M:%S";
 		}
@@ -142,14 +142,44 @@ public:
 	}
 };
 
-LogEvent::LogEvent(const char* file, int32_t line, uint32_t elapse, 
+LogEvent::LogEvent(std::shared_ptr<Logger> logger, LogLevel::Level level, const char* file, int32_t line, uint32_t elapse, 
 		uint32_t threadId, uint32_t fiberId, uint64_t time)
 	: m_file(file),
 	m_line(line),
 	m_elapse(elapse),
 	m_threadId(threadId),
 	m_fiberId(fiberId),
-	m_time(time) {
+	m_time(time), 
+	m_logger(logger),
+	m_level(level) {
+}
+
+void LogEvent::format(const char* fmt, ...) {
+	va_list al;
+	va_start(al, fmt);
+	format(fmt, al);
+	va_end(al);
+}
+
+void LogEvent::format(const char* fmt, va_list al) {
+	char* buf = nullptr;
+	int len = vasprintf(&buf, fmt, al);
+	if (len != -1) {
+		m_ss << std::string(buf, len);
+		free(buf);
+	}
+}
+
+LogEventWrap::LogEventWrap(LogEvent::ptr e) 
+	: m_event(e) {
+}
+
+LogEventWrap::~LogEventWrap() {
+	m_event->getLogger()->log(m_event->getLevel(), m_event);
+}
+
+std::stringstream& LogEventWrap::getSS() {
+	return m_event->getSS();
 }
 
 Logger::Logger(const std::string& name ) 
@@ -177,8 +207,12 @@ void Logger::delAppender(LogAppender::ptr appender) {
 void Logger::log(LogLevel::Level level, LogEvent::ptr event) {
 	if (level >= m_level) {
 		auto self = shared_from_this();
-		for (auto& i : m_appenders) {
-			i->log(self, level, event);
+		if (!m_appenders.empty()) {
+			for (auto& i : m_appenders) {
+				i->log(self, level, event);
+			}
+		} else if (m_root) {
+			m_root->log(level, event);
 		}
 	}
 }
@@ -205,6 +239,7 @@ void Logger::fatal(LogEvent::ptr event) {
 
 FileLogAppender::FileLogAppender(const std::string& filename)
 	: m_filename(filename) {
+	reopen();
 }
 
 void FileLogAppender::log(Logger::ptr logger, LogLevel::Level level, LogEvent::ptr event) {
@@ -217,7 +252,7 @@ bool FileLogAppender::reopen() {
 	if (m_filestream) {
 		m_filestream.close();
 	}
-	m_filestream.open(m_filename);
+	m_filestream.open(m_filename, std::ios::app);
 	return !!m_filestream;
 }
 
@@ -337,9 +372,33 @@ void LogFormatter::init() {
 				m_items.push_back(it->second(std::get<1>(i)));
 			}
 		}
-		std::cout << "(" << std::get<0>(i) << ") - (" << std::get<1>(i) << ") - (" << std::get<2>(i) << ")" << std::endl;
+//		std::cout << "(" << std::get<0>(i) << ") - (" << std::get<1>(i) << ") - (" << std::get<2>(i) << ")" << std::endl;
 	}
 //	std::cout << m_items.size() << std::endl;
+}
+
+LoggerManager::LoggerManager() {
+	m_root.reset(new Logger());
+	m_root->addAppender(LogAppender::ptr(new StdoutLogAppender()));
+
+	m_loggers[m_root->m_name] = m_root;
+
+	init();
+}
+
+Logger::ptr LoggerManager::getLogger(const std::string& name) {
+	auto it = m_loggers.find(name);
+	if (it != m_loggers.end()) {
+		return it->second;
+	}
+
+	Logger::ptr logger(new Logger(name));
+	logger->m_root = m_root;
+	m_loggers[name] = logger;
+	return logger;
+}
+
+void LoggerManager::init() {
 }
 
 }
