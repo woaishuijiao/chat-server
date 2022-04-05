@@ -10,7 +10,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
-#include "singleton.h"
+#include "../base/singleton.h"
 
 #define JIONG_LOG_LEVEL(logger, level) \
 	if (logger->getLevel() <= level) \

@@ -1,8 +1,8 @@
 #include <iostream>
-#include "../log.h"
+#include "../base/log.h"
 #include <time.h>
 #include <thread>
-#include "../util.h"
+#include "../utils/util.h"
 
 int main(int argc, char* argv[]) {
 	jiong::Logger::ptr logger(new jiong::Logger);
