@@ -4,6 +4,12 @@ project(chat-server)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -rdynamic -O0 -ggdb -std=c++11 -Wall -Wno-deprecated -Werror -Wno-unused-function")
 
+
+find_package(Boost REQUIRED)
+if (Boost_FOUND)
+	include_directories(${Boost_INCLUDE_DIRS})
+endif()
+
 set(LIB_SRC base/log.cpp utils/util.cpp base/singleton.h)
 
 add_library(jionglog SHARED ${LIB_SRC})
